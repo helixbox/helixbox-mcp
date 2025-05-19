@@ -361,12 +361,11 @@ server.tool(
     {
         walletAddress: z.string().describe("Wallet address"),
         chainId: z.number().describe("Chain ID"),
-        tokens: z.array(z.string()).describe("Token address array"),
     },
-    async ({ walletAddress, chainId, tokens }) => {
+    async ({ walletAddress, chainId }) => {
         try {
-            const tokenObjs = await Promise.all(tokens.map(addr => getToken(chainId, addr)));
-            const balances = await getTokenBalances(walletAddress, tokenObjs);
+            const tokens = await getTokens({ chains: [chainId] });
+            const balances = await getTokenBalances(walletAddress, tokens.tokens[chainId]);
             return {
                 content: [
                     { type: "text", text: JSON.stringify(balances, null, 2) },
@@ -376,37 +375,6 @@ server.tool(
             return {
                 content: [
                     { type: "text", text: `Failed to get token balances: ${error.message}` },
-                ],
-            };
-        }
-    }
-);
-
-// getTokenBalancesByChain tool: Get balances for tokens by chain for a wallet
-server.tool(
-    "tokenBalancesByChain",
-    "Get balances for tokens by chain for a wallet",
-    {
-        walletAddress: z.string().describe("Wallet address"),
-        tokensByChain: z.record(z.string(), z.array(z.string())).describe("Tokens by chain: { [chainId]: [tokenAddress, ...] }"),
-    },
-    async ({ walletAddress, tokensByChain }) => {
-        try {
-            const tokensByChainObj: Record<number, any[]> = {};
-            for (const [chainIdStr, tokenAddrs] of Object.entries(tokensByChain)) {
-                const chainId = Number(chainIdStr);
-                tokensByChainObj[chainId] = await Promise.all(tokenAddrs.map(addr => getToken(chainId, addr)));
-            }
-            const balances = await getTokenBalancesByChain(walletAddress, tokensByChainObj);
-            return {
-                content: [
-                    { type: "text", text: JSON.stringify(balances, null, 2) },
-                ],
-            };
-        } catch (error: any) {
-            return {
-                content: [
-                    { type: "text", text: `Failed to get token balances by chain: ${error.message}` },
                 ],
             };
         }

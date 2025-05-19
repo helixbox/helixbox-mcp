@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { createConfig, getQuote, getChains, getTokens, getToken, getTools } from "@lifi/sdk";
+import { createConfig, getQuote, getChains, getTokens, getToken, getTools, getTokenBalance, getTokenBalances, getTokenAllowance, getTokenAllowanceMulticall, getConnections, getStatus, getRoutes } from "@lifi/sdk";
 const lifiIntegrator = "helixbox-mcp";
 createConfig({
     integrator: lifiIntegrator,
@@ -263,25 +263,12 @@ server.tool("connections", "Get all available connections for swapping or bridgi
     toToken: z.string().optional().describe("Target token address (optional)"),
 }, async ({ fromChain, fromToken, toChain, toToken }) => {
     try {
-        const params = new URLSearchParams();
-        if (fromChain !== undefined)
-            params.append("fromChain", fromChain.toString());
-        if (fromToken)
-            params.append("fromToken", fromToken);
-        if (toChain !== undefined)
-            params.append("toChain", toChain.toString());
-        if (toToken)
-            params.append("toToken", toToken);
-        const url = `https://li.quest/v1/connections?${params.toString()}`;
-        const res = await fetch(url, {
-            headers: {
-                "x-lifi-sdk-integrator": lifiIntegrator,
-                "x-api-key": process.env.LIFIPRO_API_KEY || "",
-            },
+        const data = await getConnections({
+            fromChain,
+            fromToken,
+            toChain,
+            toToken,
         });
-        if (!res.ok)
-            throw new Error(`HTTP ${res.status}: ${await res.text()}`);
-        const data = await res.json();
         return {
             content: [
                 { type: "text", text: JSON.stringify(data, null, 2) },
@@ -303,19 +290,11 @@ server.tool("tokenBalance", "Get the balance of a specific token for a wallet", 
     token: z.string().describe("Token address"),
 }, async ({ walletAddress, chainId, token }) => {
     try {
-        const url = `https://li.quest/v1/balance/${walletAddress}/${chainId}/${token}`;
-        const res = await fetch(url, {
-            headers: {
-                "x-lifi-sdk-integrator": lifiIntegrator,
-                "x-api-key": process.env.LIFIPRO_API_KEY || "",
-            },
-        });
-        if (!res.ok)
-            throw new Error(`HTTP ${res.status}: ${await res.text()}`);
-        const data = await res.json();
+        const tokenObj = await getToken(chainId, token);
+        const balance = await getTokenBalance("0x9F33a4809aA708d7a399fedBa514e0A0d15EfA85", tokenObj);
         return {
             content: [
-                { type: "text", text: JSON.stringify(data, null, 2) },
+                { type: "text", text: JSON.stringify(balance, null, 2) },
             ],
         };
     }
@@ -330,25 +309,14 @@ server.tool("tokenBalance", "Get the balance of a specific token for a wallet", 
 // getTokenBalances tool: get balances for a list of tokens for a wallet
 server.tool("tokenBalances", "Get balances for a list of tokens for a wallet", {
     walletAddress: z.string().describe("Wallet address"),
-    tokensByChain: z.record(z.string(), z.array(z.string())).describe("Tokens by chain: { [chainId]: [tokenAddress, ...] }"),
-}, async ({ walletAddress, tokensByChain }) => {
+    chainId: z.number().describe("Chain ID"),
+}, async ({ walletAddress, chainId }) => {
     try {
-        const url = `https://li.quest/v1/balances/${walletAddress}`;
-        const res = await fetch(url, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "x-lifi-sdk-integrator": lifiIntegrator,
-                "x-api-key": process.env.LIFIPRO_API_KEY || "",
-            },
-            body: JSON.stringify({ tokensByChain }),
-        });
-        if (!res.ok)
-            throw new Error(`HTTP ${res.status}: ${await res.text()}`);
-        const data = await res.json();
+        const tokens = await getTokens({ chains: [chainId] });
+        const balances = await getTokenBalances(walletAddress, tokens.tokens[chainId]);
         return {
             content: [
-                { type: "text", text: JSON.stringify(data, null, 2) },
+                { type: "text", text: JSON.stringify(balances, null, 2) },
             ],
         };
     }
@@ -360,7 +328,97 @@ server.tool("tokenBalances", "Get balances for a list of tokens for a wallet", {
         };
     }
 });
-// getStatus tool: get the status of a cross-chain or swap transaction
+// getTokenAllowance tool: get the allowance of a token for a spender
+server.tool("tokenAllowance", "Get the allowance of a token for a spender", {
+    token: z.object({
+        address: z.string().describe("Token address"),
+        chainId: z.number().describe("Chain ID"),
+    }),
+    ownerAddress: z.string().describe("Owner address"),
+    spenderAddress: z.string().describe("Spender address"),
+}, async ({ token, ownerAddress, spenderAddress }) => {
+    try {
+        const tokenObj = await getToken(token.chainId, token.address);
+        const allowance = await getTokenAllowance(tokenObj, ownerAddress, spenderAddress);
+        return {
+            content: [
+                { type: "text", text: JSON.stringify(allowance, null, 2) },
+            ],
+        };
+    }
+    catch (error) {
+        return {
+            content: [
+                { type: "text", text: `Failed to get token allowance: ${error.message}` },
+            ],
+        };
+    }
+});
+// getTokenAllowanceMulticall tool: Get the allowance of multiple tokens for a spender
+server.tool("tokenAllowanceMulticall", "Get the allowance of multiple tokens for a spender", {
+    ownerAddress: z.string().describe("Owner address"),
+    tokens: z.array(z.object({
+        token: z.object({
+            address: z.string().describe("Token address"),
+            chainId: z.number().describe("Chain ID"),
+        }),
+        spenderAddress: z.string().describe("Spender address"),
+    })).describe("Array of { token, spenderAddress }"),
+}, async ({ ownerAddress, tokens }) => {
+    try {
+        const tokensWithSpender = await Promise.all(tokens.map(async ({ token, spenderAddress }) => ({
+            token: await getToken(token.chainId, token.address),
+            spenderAddress,
+        })));
+        const allowances = await getTokenAllowanceMulticall(ownerAddress, tokensWithSpender);
+        return {
+            content: [
+                { type: "text", text: JSON.stringify(allowances, null, 2) },
+            ],
+        };
+    }
+    catch (error) {
+        return {
+            content: [
+                { type: "text", text: `Failed to get token allowance multicall: ${error.message}` },
+            ],
+        };
+    }
+});
+// getRoutes tool: get all available routes for a token transfer
+server.tool("routes", "Get all available routes for a token transfer", {
+    fromChainId: z.number().describe("Source chain ID"),
+    toChainId: z.number().describe("Target chain ID"),
+    fromTokenAddress: z.string().describe("Source token address"),
+    toTokenAddress: z.string().describe("Target token address"),
+    fromAmount: z.string().describe("Amount in smallest unit (string)"),
+    fromAddress: z.string().optional().describe("User wallet address (optional)"),
+}, async ({ fromChainId, toChainId, fromTokenAddress, toTokenAddress, fromAmount, fromAddress }) => {
+    try {
+        const params = {
+            fromChainId,
+            toChainId,
+            fromTokenAddress,
+            toTokenAddress,
+            fromAmount,
+        };
+        if (fromAddress)
+            params.fromAddress = fromAddress;
+        const data = await getRoutes(params);
+        return {
+            content: [
+                { type: "text", text: JSON.stringify(data, null, 2) },
+            ],
+        };
+    }
+    catch (error) {
+        return {
+            content: [
+                { type: "text", text: `Failed to get routes: ${error.message}` },
+            ],
+        };
+    }
+});
 server.tool("status", "Get the status of a cross-chain or swap transaction", {
     txHash: z.string().describe("Transaction hash"),
     bridge: z.string().optional().describe("Bridge key (optional)"),
@@ -368,23 +426,12 @@ server.tool("status", "Get the status of a cross-chain or swap transaction", {
     toChain: z.number().optional().describe("Target chain ID (optional)"),
 }, async ({ txHash, bridge, fromChain, toChain }) => {
     try {
-        const params = new URLSearchParams({ txHash });
-        if (bridge)
-            params.append("bridge", bridge);
-        if (fromChain !== undefined)
-            params.append("fromChain", fromChain.toString());
-        if (toChain !== undefined)
-            params.append("toChain", toChain.toString());
-        const url = `https://li.quest/v1/status?${params.toString()}`;
-        const res = await fetch(url, {
-            headers: {
-                "x-lifi-sdk-integrator": lifiIntegrator,
-                "x-api-key": process.env.LIFIPRO_API_KEY || "",
-            },
+        const data = await getStatus({
+            txHash,
+            bridge,
+            fromChain,
+            toChain,
         });
-        if (!res.ok)
-            throw new Error(`HTTP ${res.status}: ${await res.text()}`);
-        const data = await res.json();
         return {
             content: [
                 { type: "text", text: JSON.stringify(data, null, 2) },
@@ -404,7 +451,7 @@ server.tool("gasPrice", "Get gas price for a specific chain", {
     chainId: z.number().describe("Chain ID"),
 }, async ({ chainId }) => {
     try {
-        const url = `https://li.quest/v1/gas-price/${chainId}`;
+        const url = `https://li.quest/v1/gas/prices/${chainId}`;
         const res = await fetch(url, {
             headers: {
                 "x-lifi-sdk-integrator": lifiIntegrator,
@@ -431,7 +478,7 @@ server.tool("gasPrice", "Get gas price for a specific chain", {
 // getGasPrices tool: get gas prices for all supported chains
 server.tool("gasPrices", "Get gas prices for all supported chains", {}, async () => {
     try {
-        const url = `https://li.quest/v1/gas-prices`;
+        const url = `https://li.quest/v1/gas/prices`;
         const res = await fetch(url, {
             headers: {
                 "x-lifi-sdk-integrator": lifiIntegrator,
@@ -451,86 +498,6 @@ server.tool("gasPrices", "Get gas prices for all supported chains", {}, async ()
         return {
             content: [
                 { type: "text", text: `Failed to get gas prices: ${error.message}` },
-            ],
-        };
-    }
-});
-// getTokenAllowance tool: get the allowance of a token for a spender
-server.tool("tokenAllowance", "Get the allowance of a token for a spender", {
-    token: z.object({
-        address: z.string().describe("Token address"),
-        chainId: z.number().describe("Chain ID"),
-    }),
-    ownerAddress: z.string().describe("Owner address"),
-    spenderAddress: z.string().describe("Spender address"),
-}, async ({ token, ownerAddress, spenderAddress }) => {
-    try {
-        const url = `https://li.quest/v1/allowance/${token.chainId}/${token.address}/${ownerAddress}/${spenderAddress}`;
-        const res = await fetch(url, {
-            headers: {
-                "x-lifi-sdk-integrator": lifiIntegrator,
-                "x-api-key": process.env.LIFIPRO_API_KEY || "",
-            },
-        });
-        if (!res.ok)
-            throw new Error(`HTTP ${res.status}: ${await res.text()}`);
-        const data = await res.json();
-        return {
-            content: [
-                { type: "text", text: JSON.stringify(data, null, 2) },
-            ],
-        };
-    }
-    catch (error) {
-        return {
-            content: [
-                { type: "text", text: `Failed to get token allowance: ${error.message}` },
-            ],
-        };
-    }
-});
-// getRoutes tool: get all available routes for a token transfer
-server.tool("routes", "Get all available routes for a token transfer", {
-    fromChainId: z.number().describe("Source chain ID"),
-    toChainId: z.number().describe("Target chain ID"),
-    fromTokenAddress: z.string().describe("Source token address"),
-    toTokenAddress: z.string().describe("Target token address"),
-    fromAmount: z.string().describe("Amount in smallest unit (string)"),
-    fromAddress: z.string().optional().describe("User wallet address (optional)"),
-}, async ({ fromChainId, toChainId, fromTokenAddress, toTokenAddress, fromAmount, fromAddress }) => {
-    try {
-        const body = {
-            fromChainId,
-            toChainId,
-            fromTokenAddress,
-            toTokenAddress,
-            fromAmount,
-        };
-        if (fromAddress)
-            body.fromAddress = fromAddress;
-        const url = `https://li.quest/v1/routes`;
-        const res = await fetch(url, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "x-lifi-sdk-integrator": lifiIntegrator,
-                "x-api-key": process.env.LIFIPRO_API_KEY || "",
-            },
-            body: JSON.stringify(body),
-        });
-        if (!res.ok)
-            throw new Error(`HTTP ${res.status}: ${await res.text()}`);
-        const data = await res.json();
-        return {
-            content: [
-                { type: "text", text: JSON.stringify(data, null, 2) },
-            ],
-        };
-    }
-    catch (error) {
-        return {
-            content: [
-                { type: "text", text: `Failed to get routes: ${error.message}` },
             ],
         };
     }

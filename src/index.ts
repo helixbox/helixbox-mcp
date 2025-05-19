@@ -38,6 +38,11 @@ const server = new McpServer({
     },
 });
 
+// Helper: safely stringify objects with bigint
+function safeStringify(obj: any) {
+    return JSON.stringify(obj, (_, v) => typeof v === "bigint" ? v.toString() : v, 2);
+}
+
 // swap tool: cross-chain or same-chain swap
 server.tool(
     "swap",
@@ -66,7 +71,7 @@ server.tool(
                 content: [
                     {
                         type: "text",
-                        text: JSON.stringify(quote, null, 2),
+                        text: safeStringify(quote),
                     },
                 ],
             };
@@ -114,7 +119,7 @@ server.tool(
                 content: [
                     {
                         type: "text",
-                        text: JSON.stringify(quote, null, 2),
+                        text: safeStringify(quote),
                     },
                 ],
             };
@@ -143,7 +148,7 @@ server.tool(
                 content: [
                     {
                         type: "text",
-                        text: JSON.stringify(chains, null, 2),
+                        text: safeStringify(chains),
                     },
                 ],
             };
@@ -174,7 +179,7 @@ server.tool(
                 content: [
                     {
                         type: "text",
-                        text: JSON.stringify(tokens, null, 2),
+                        text: safeStringify(tokens),
                     },
                 ],
             };
@@ -206,7 +211,7 @@ server.tool(
                 content: [
                     {
                         type: "text",
-                        text: JSON.stringify(tokenInfo, null, 2),
+                        text: safeStringify(tokenInfo),
                     },
                 ],
             };
@@ -237,7 +242,7 @@ server.tool(
                 content: [
                     {
                         type: "text",
-                        text: JSON.stringify(tools, null, 2),
+                        text: safeStringify(tools),
                     },
                 ],
             };
@@ -295,7 +300,7 @@ server.tool(
                 content: [
                     {
                         type: "text",
-                        text: JSON.stringify(data, null, 2),
+                        text: safeStringify(data),
                     },
                 ],
             };
@@ -332,7 +337,7 @@ server.tool(
             });
             return {
                 content: [
-                    { type: "text", text: JSON.stringify(data, null, 2) },
+                    { type: "text", text: safeStringify(data) },
                 ],
             };
         } catch (error: any) {
@@ -360,7 +365,7 @@ server.tool(
             const balance = await getTokenBalance(walletAddress, tokenObj);
             return {
                 content: [
-                    { type: "text", text: JSON.stringify(balance, null, 2) },
+                    { type: "text", text: safeStringify(balance) },
                 ],
             };
         } catch (error: any) {
@@ -387,7 +392,7 @@ server.tool(
             const balances = await getTokenBalances(walletAddress, tokens.tokens[chainId]);
             return {
                 content: [
-                    { type: "text", text: JSON.stringify(balances, null, 2) },
+                    { type: "text", text: safeStringify(balances) },
                 ],
             };
         } catch (error: any) {
@@ -418,7 +423,7 @@ server.tool(
             const allowance = await getTokenAllowance(tokenObj, ownerAddress as `0x${string}`, spenderAddress as `0x${string}`);
             return {
                 content: [
-                    { type: "text", text: JSON.stringify(allowance, null, 2) },
+                    { type: "text", text: safeStringify(allowance) },
                 ],
             };
         } catch (error: any) {
@@ -454,7 +459,7 @@ server.tool(
             const allowances = await getTokenAllowanceMulticall(ownerAddress as `0x${string}`, tokensWithSpender);
             return {
                 content: [
-                    { type: "text", text: JSON.stringify(allowances, null, 2) },
+                    { type: "text", text: safeStringify(allowances) },
                 ],
             };
         } catch (error: any) {
@@ -492,7 +497,7 @@ server.tool(
             const data = await getRoutes(params);
             return {
                 content: [
-                    { type: "text", text: JSON.stringify(data, null, 2) },
+                    { type: "text", text: safeStringify(data) },
                 ],
             };
         } catch (error: any) {
@@ -524,7 +529,7 @@ server.tool(
             });
             return {
                 content: [
-                    { type: "text", text: JSON.stringify(data, null, 2) },
+                    { type: "text", text: safeStringify(data) },
                 ],
             };
         } catch (error: any) {
@@ -557,7 +562,7 @@ server.tool(
             const data = await res.json();
             return {
                 content: [
-                    { type: "text", text: JSON.stringify(data, null, 2) },
+                    { type: "text", text: safeStringify(data) },
                 ],
             };
         } catch (error: any) {
@@ -588,7 +593,7 @@ server.tool(
             const data = await res.json();
             return {
                 content: [
-                    { type: "text", text: JSON.stringify(data, null, 2) },
+                    { type: "text", text: safeStringify(data) },
                 ],
             };
         } catch (error: any) {

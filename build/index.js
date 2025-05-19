@@ -33,6 +33,10 @@ const server = new McpServer({
         tools: {},
     },
 });
+// Helper: safely stringify objects with bigint
+function safeStringify(obj) {
+    return JSON.stringify(obj, (_, v) => typeof v === "bigint" ? v.toString() : v, 2);
+}
 // swap tool: cross-chain or same-chain swap
 server.tool("swap", "Swap tokens (cross-chain or same-chain)", {
     fromChain: z.number().describe("Source chain ID"),
@@ -57,7 +61,7 @@ server.tool("swap", "Swap tokens (cross-chain or same-chain)", {
             content: [
                 {
                     type: "text",
-                    text: JSON.stringify(quote, null, 2),
+                    text: safeStringify(quote),
                 },
             ],
         };
@@ -100,7 +104,7 @@ server.tool("bridge", "Bridge tokens", {
             content: [
                 {
                     type: "text",
-                    text: JSON.stringify(quote, null, 2),
+                    text: safeStringify(quote),
                 },
             ],
         };
@@ -124,7 +128,7 @@ server.tool("chains", "Get supported chains", {}, async () => {
             content: [
                 {
                     type: "text",
-                    text: JSON.stringify(chains, null, 2),
+                    text: safeStringify(chains),
                 },
             ],
         };
@@ -150,7 +154,7 @@ server.tool("tokens", "Get supported tokens", {
             content: [
                 {
                     type: "text",
-                    text: JSON.stringify(tokens, null, 2),
+                    text: safeStringify(tokens),
                 },
             ],
         };
@@ -177,7 +181,7 @@ server.tool("token", "Get token info", {
             content: [
                 {
                     type: "text",
-                    text: JSON.stringify(tokenInfo, null, 2),
+                    text: safeStringify(tokenInfo),
                 },
             ],
         };
@@ -203,7 +207,7 @@ server.tool("tools", "Get supported bridges and exchanges", {
             content: [
                 {
                     type: "text",
-                    text: JSON.stringify(tools, null, 2),
+                    text: safeStringify(tools),
                 },
             ],
         };
@@ -256,7 +260,7 @@ server.tool("quoteToAmount", "Get a quote for a token transfer using toAmount", 
             content: [
                 {
                     type: "text",
-                    text: JSON.stringify(data, null, 2),
+                    text: safeStringify(data),
                 },
             ],
         };
@@ -288,7 +292,7 @@ server.tool("connections", "Get all available connections for swapping or bridgi
         });
         return {
             content: [
-                { type: "text", text: JSON.stringify(data, null, 2) },
+                { type: "text", text: safeStringify(data) },
             ],
         };
     }
@@ -311,7 +315,7 @@ server.tool("tokenBalance", "Get the balance of a specific token for a wallet", 
         const balance = await getTokenBalance(walletAddress, tokenObj);
         return {
             content: [
-                { type: "text", text: JSON.stringify(balance, null, 2) },
+                { type: "text", text: safeStringify(balance) },
             ],
         };
     }
@@ -333,7 +337,7 @@ server.tool("tokenBalances", "Get balances for a list of tokens for a wallet", {
         const balances = await getTokenBalances(walletAddress, tokens.tokens[chainId]);
         return {
             content: [
-                { type: "text", text: JSON.stringify(balances, null, 2) },
+                { type: "text", text: safeStringify(balances) },
             ],
         };
     }
@@ -359,7 +363,7 @@ server.tool("tokenAllowance", "Get the allowance of a token for a spender", {
         const allowance = await getTokenAllowance(tokenObj, ownerAddress, spenderAddress);
         return {
             content: [
-                { type: "text", text: JSON.stringify(allowance, null, 2) },
+                { type: "text", text: safeStringify(allowance) },
             ],
         };
     }
@@ -390,7 +394,7 @@ server.tool("tokenAllowanceMulticall", "Get the allowance of multiple tokens for
         const allowances = await getTokenAllowanceMulticall(ownerAddress, tokensWithSpender);
         return {
             content: [
-                { type: "text", text: JSON.stringify(allowances, null, 2) },
+                { type: "text", text: safeStringify(allowances) },
             ],
         };
     }
@@ -424,7 +428,7 @@ server.tool("routes", "Get all available routes for a token transfer", {
         const data = await getRoutes(params);
         return {
             content: [
-                { type: "text", text: JSON.stringify(data, null, 2) },
+                { type: "text", text: safeStringify(data) },
             ],
         };
     }
@@ -451,7 +455,7 @@ server.tool("status", "Get the status of a cross-chain or swap transaction", {
         });
         return {
             content: [
-                { type: "text", text: JSON.stringify(data, null, 2) },
+                { type: "text", text: safeStringify(data) },
             ],
         };
     }
@@ -480,7 +484,7 @@ server.tool("gasPrice", "Get gas price for a specific chain", {
         const data = await res.json();
         return {
             content: [
-                { type: "text", text: JSON.stringify(data, null, 2) },
+                { type: "text", text: safeStringify(data) },
             ],
         };
     }
@@ -507,7 +511,7 @@ server.tool("gasPrices", "Get gas prices for all supported chains", {}, async ()
         const data = await res.json();
         return {
             content: [
-                { type: "text", text: JSON.stringify(data, null, 2) },
+                { type: "text", text: safeStringify(data) },
             ],
         };
     }

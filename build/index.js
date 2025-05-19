@@ -1,11 +1,28 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { createConfig, getQuote, getChains, getTokens, getToken, getTools, getTokenBalance, getTokenBalances, getTokenAllowance, getTokenAllowanceMulticall, getConnections, getStatus, getRoutes } from "@lifi/sdk";
+import { createConfig, getQuote, getChains, getTokens, getToken, getTools, getTokenBalance, getTokenBalances, getTokenAllowance, getTokenAllowanceMulticall, getConnections, getStatus, getRoutes, EVM } from "@lifi/sdk";
+import { createWalletClient, http } from "viem";
+import { mainnet } from "viem/chains";
 const lifiIntegrator = "helixbox-mcp";
+const allChains = await getChains();
 createConfig({
     integrator: lifiIntegrator,
     apiKey: process.env.LIFIPRO_API_KEY,
+    providers: [
+        EVM({
+            getWalletClient: async () => createWalletClient({
+                chain: mainnet,
+                transport: http(),
+            }),
+            switchChain: async (chainId) => 
+            // Switch chain by creating a new wallet client
+            createWalletClient({
+                chain: allChains.find((chain) => chain.id == chainId),
+                transport: http(),
+            }),
+        }),
+    ]
 });
 // Create MCP server instance
 const server = new McpServer({
@@ -291,7 +308,7 @@ server.tool("tokenBalance", "Get the balance of a specific token for a wallet", 
 }, async ({ walletAddress, chainId, token }) => {
     try {
         const tokenObj = await getToken(chainId, token);
-        const balance = await getTokenBalance("0x9F33a4809aA708d7a399fedBa514e0A0d15EfA85", tokenObj);
+        const balance = await getTokenBalance(walletAddress, tokenObj);
         return {
             content: [
                 { type: "text", text: JSON.stringify(balance, null, 2) },

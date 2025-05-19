@@ -11,7 +11,8 @@
     "scripts": {
         "dev": "tsx src/index.ts",
         "build": "tsc",
-        "start": "node build/index.js"
+        "start": "node build/index.js",
+        "test": "tsx src/test.ts"
     },
     "keywords": [],
     "author": "i@gt.email",
@@ -21,6 +22,7 @@
         "@types/node": "^22.15.19",
         "ts-node": "^10.9.2",
         "typescript": "^5.8.3",
+        "viem": "^2.29.4",
         "zod": "^3.24.4"
     },
     "devDependencies": {

@@ -234,6 +234,64 @@ server.tool(
     }
 );
 
+// get-quote-to-amount tool: get a quote for a token transfer using toAmount
+server.tool(
+    "get-quote-to-amount",
+    "Get a quote for a token transfer using toAmount via LiFi",
+    {
+        fromChain: z.number().describe("Source chain ID"),
+        toChain: z.number().describe("Target chain ID"),
+        fromToken: z.string().describe("Source token address"),
+        toToken: z.string().describe("Target token address"),
+        toAmount: z.string().describe("Desired amount to receive on target chain (in smallest unit)"),
+        fromAddress: z.string().describe("User wallet address"),
+        slippage: z.number().optional().describe("Allowed slippage in percent (optional)"),
+    },
+    async ({ fromChain, toChain, fromToken, toToken, toAmount, fromAddress, slippage }) => {
+        try {
+            const params = new URLSearchParams({
+                fromChain: fromChain.toString(),
+                toChain: toChain.toString(),
+                fromToken,
+                toToken,
+                toAmount,
+                fromAddress,
+            });
+            if (slippage !== undefined) {
+                params.append("slippage", slippage.toString());
+            }
+            const url = `https://li.quest/v1/quote/toAmount?${params.toString()}`;
+            const res = await fetch(url, {
+                headers: {
+                    "x-lifi-sdk-integrator": "helixbox-mcp",
+                    "x-api-key": process.env.LIFIPRO_API_KEY || "",
+                },
+            });
+            if (!res.ok) {
+                throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+            }
+            const data = await res.json();
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify(data, null, 2),
+                    },
+                ],
+            };
+        } catch (error: any) {
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: `Failed to get quote by toAmount: ${error.message}`,
+                    },
+                ],
+            };
+        }
+    }
+);
+
 async function main() {
     const transport = new StdioServerTransport();
     await server.connect(transport);

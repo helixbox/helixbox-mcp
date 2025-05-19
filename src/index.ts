@@ -550,6 +550,70 @@ server.tool(
     }
 );
 
+// getGasPrice tool: get gas price for a specific chain
+server.tool(
+    "gasPrice",
+    "Get gas price for a specific chain",
+    {
+        chainId: z.number().describe("Chain ID"),
+    },
+    async ({ chainId }) => {
+        try {
+            const url = `https://li.quest/v1/gas/prices/${chainId}`;
+            const res = await fetch(url, {
+                headers: {
+                    "x-lifi-sdk-integrator": lifiIntegrator,
+                    "x-api-key": process.env.LIFIPRO_API_KEY || "",
+                },
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+            const data = await res.json();
+            return {
+                content: [
+                    { type: "text", text: JSON.stringify(data, null, 2) },
+                ],
+            };
+        } catch (error: any) {
+            return {
+                content: [
+                    { type: "text", text: `Failed to get gas price: ${error.message}` },
+                ],
+            };
+        }
+    }
+);
+
+// getGasPrices tool: get gas prices for all supported chains
+server.tool(
+    "gasPrices",
+    "Get gas prices for all supported chains",
+    {},
+    async () => {
+        try {
+            const url = `https://li.quest/v1/gas/prices`;
+            const res = await fetch(url, {
+                headers: {
+                    "x-lifi-sdk-integrator": lifiIntegrator,
+                    "x-api-key": process.env.LIFIPRO_API_KEY || "",
+                },
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+            const data = await res.json();
+            return {
+                content: [
+                    { type: "text", text: JSON.stringify(data, null, 2) },
+                ],
+            };
+        } catch (error: any) {
+            return {
+                content: [
+                    { type: "text", text: `Failed to get gas prices: ${error.message}` },
+                ],
+            };
+        }
+    }
+);
+
 async function main() {
     const transport = new StdioServerTransport();
     await server.connect(transport);

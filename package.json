@@ -1,0 +1,30 @@
+{
+    "name": "helixbox-mcp",
+    "version": "0.0.1",
+    "description": "Helixbox Model Context Protocol server",
+    "main": "build/index.js",
+    "type": "module",
+    "bin": {
+        "helixbox-mcp": "./build/index.js"
+    },
+    "private": true,
+    "scripts": {
+        "dev": "tsx src/index.ts",
+        "build": "tsc",
+        "start": "node build/index.js"
+    },
+    "keywords": [],
+    "author": "i@gt.email",
+    "dependencies": {
+        "@lifi/sdk": "^3.7.0",
+        "@modelcontextprotocol/sdk": "^1.11.4",
+        "@types/node": "^22.15.19",
+        "ts-node": "^10.9.2",
+        "typescript": "^5.8.3",
+        "zod": "^3.24.4"
+    },
+    "devDependencies": {
+        "nodemon": "^3.1.10",
+        "tsx": "^4.19.4"
+    }
+}

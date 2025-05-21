@@ -125,9 +125,9 @@ server.registerTool(
     {
         description: "Bridge tokens",
         inputSchema: {
-        fromChain: z.number().describe("Source chain ID"),
-        toChain: z.number().describe("Target chain ID"),
-        fromToken: z.string().describe("Source token address"),
+            fromChain: z.number().describe("Source chain ID"),
+            toChain: z.number().describe("Target chain ID"),
+            fromToken: z.string().describe("Source token address"),
             toToken: z.string().describe("Target token address"),
             fromAmount: z.string().describe("Amount in smallest unit (string)"),
             fromAddress: z.string().describe("User wallet address"),
@@ -136,12 +136,12 @@ server.registerTool(
         outputSchema: {
             params: z.object({
                 fromChain: z.number().describe("Source chain ID"),
-            toChain: z.number().describe("Target chain ID"),
-            fromToken: z.string().describe("Source token address"),
-            toToken: z.string().describe("Target token address"),
-            fromAmount: z.string().describe("Amount in smallest unit (string)"),
-            fromAddress: z.string().describe("User wallet address"),
-            slippage: z.number().optional().describe("Allowed slippage in percent (optional)"),
+                toChain: z.number().describe("Target chain ID"),
+                fromToken: z.string().describe("Source token address"),
+                toToken: z.string().describe("Target token address"),
+                fromAmount: z.string().describe("Amount in smallest unit (string)"),
+                fromAddress: z.string().describe("User wallet address"),
+                slippage: z.number().optional().describe("Allowed slippage in percent (optional)"),
             }),
             protocol: z.string().describe("Protocol"),
             quote: z.any().optional().describe("Quote"),
@@ -220,6 +220,27 @@ server.tool(
                         type: "text",
                         text: `Failed to get chains: ${error.message}`,
                     },
+                ],
+            };
+        }
+    }
+);
+
+server.resource(
+    "chains",
+    "helixbox://chains",
+    async () => {
+        try {
+            const chains = await getChains();
+            return {
+                contents: [
+                    { uri: "uri", text: safeStringify(chains) },
+                ],
+            };
+        } catch (error: any) {
+            return {
+                contents: [
+                    { uri: "uri", text: `Failed to get chains: ${error.message}` },
                 ],
             };
         }

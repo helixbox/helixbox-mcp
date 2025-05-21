@@ -4,7 +4,10 @@ import { z } from "zod";
 import { createConfig, getQuote, getChains, getTokens, getToken, getTools, getTokenBalance, getTokenBalances, getTokenAllowance, getTokenAllowanceMulticall, getConnections, getStatus, getRoutes, EVM } from "@lifi/sdk";
 import { createWalletClient, http, Chain as ViemChain } from "viem";
 import { mainnet } from "viem/chains";
+import NodeCache from "node-cache";
 
+const _cache = new NodeCache();
+const cacheTTL = 60 * 60 * 24;
 const lifiIntegrator = "helixbox-mcp";
 const lifiProtocol = "LI.FI";
 
@@ -204,7 +207,11 @@ server.tool(
     {},
     async () => {
         try {
-            const chains = await getChains();
+            let chains = _cache.get("chains");
+            if (!chains) {
+                chains = await getChains();
+                _cache.set("chains", chains, cacheTTL);
+            }
             return {
                 content: [
                     {
@@ -226,21 +233,35 @@ server.tool(
     }
 );
 
-server.resource(
-    "chains",
-    "helixbox://chains",
-    async () => {
+// tokens tool: get supported tokens
+server.tool(
+    "tokens-one-chain",
+    "Get supported tokens on one chain",
+    {
+        chain: z.string().optional().describe("Chain key or ID (optional)"),
+    },
+    async ({ chain }) => {
         try {
-            const chains = await getChains();
+            let tokens = _cache.get(`tokens-${chain || "all"}`);
+            if (!tokens) {
+                tokens = await getTokens({ chains: chain ? [chain as any] : undefined });
+                _cache.set(`tokens-${chain || "all"}`, tokens, cacheTTL);
+            }
             return {
-                contents: [
-                    { uri: "uri", text: safeStringify(chains) },
+                content: [
+                    {
+                        type: "text",
+                        text: safeStringify(tokens),
+                    },
                 ],
             };
         } catch (error: any) {
             return {
-                contents: [
-                    { uri: "uri", text: `Failed to get chains: ${error.message}` },
+                content: [
+                    {
+                        type: "text",
+                        text: `Failed to get tokens: ${error.message}`,
+                    },
                 ],
             };
         }
@@ -249,10 +270,10 @@ server.resource(
 
 // tokens tool: get supported tokens
 server.tool(
-    "tokens",
-    "Get supported tokens",
+    "tokens-multiple-chains",
+    "Get supported tokens on multiple chains",
     {
-        chains: z.array(z.union([z.string(), z.number()])).optional().describe("List of chain IDs or keys (optional)"),
+        chains: z.array(z.string()).optional().describe("List of chain keys (optional)"),
     },
     async ({ chains }) => {
         try {
@@ -283,12 +304,16 @@ server.tool(
     "token",
     "Get token info",
     {
-        chain: z.union([z.string(), z.number()]).describe("Chain key or chain ID"),
+        chain: z.string().describe("Chain key or chain ID"),
         token: z.string().describe("Token address or symbol"),
     },
     async ({ chain, token }) => {
         try {
-            const tokenInfo = await getToken(chain as any, token);
+            let tokenInfo = _cache.get(`token-${chain}-${token}`);
+            if (!tokenInfo) {
+                tokenInfo = await getToken(chain as any, token);
+                _cache.set(`token-${chain}-${token}`, tokenInfo, cacheTTL);
+            }
             return {
                 content: [
                     {
@@ -315,7 +340,7 @@ server.tool(
     "tools",
     "Get supported bridges and exchanges",
     {
-        chains: z.array(z.union([z.string(), z.number()])).optional().describe("List of chain keys or IDs (optional)"),
+        chains: z.array(z.string()).optional().describe("List of chain keys or IDs (optional)"),
     },
     async ({ chains }) => {
         try {
@@ -343,7 +368,7 @@ server.tool(
 
 // get-quote-to-amount tool: get a quote for a token transfer using toAmount
 server.tool(
-    "quoteToAmount",
+    "quote-to-amount",
     "Get a quote for a token transfer using toAmount",
     {
         fromChain: z.number().describe("Source chain ID"),
@@ -433,55 +458,91 @@ server.tool(
 );
 
 // getTokenBalance tool: get the balance of a specific token for a wallet
-server.tool(
-    "tokenBalance",
-    "Get the balance of a specific token for a wallet",
+server.registerTool(
+    "token-balance",
     {
-        walletAddress: z.string().describe("Wallet address"),
-        chainId: z.number().describe("Chain ID"),
-        token: z.string().describe("Token address"),
+        description: "Get the balance of a specific token for a wallet",
+        inputSchema: {
+            walletAddress: z.string().describe("Wallet address"),
+            chainId: z.number().describe("Chain ID"),
+            token: z.string().describe("Token address"),
+        },
+        outputSchema: {
+            balance: z.object({
+                chainId: z.number().describe("Chain ID"),
+                address: z.string().describe("Wallet address"),
+                symbol: z.string().describe("Token symbol"),
+                name: z.string().describe("Token name"),
+                decimals: z.number().describe("Token decimals"),
+                priceUSD: z.string().describe("Token price in USD"),
+                coinKey: z.string().describe("Token key"),
+                logoURI: z.string().describe("Token logo URI"),
+                amount: z.string().describe("Token balance"),
+                blockNumber: z.string().describe("Block number"),
+            }),
+            error: z.string().optional().describe("Error message"),
+        },
     },
     async ({ walletAddress, chainId, token }) => {
         try {
             const tokenObj = await getToken(chainId, token);
-            const balance = await getTokenBalance(walletAddress, tokenObj);
+            let balance = await getTokenBalance(walletAddress, tokenObj);
+            balance = JSON.parse(safeStringify(balance));
             return {
-                content: [
-                    { type: "text", text: safeStringify(balance) },
-                ],
+                structuredContent: {
+                    balance: balance,
+                },
             };
         } catch (error: any) {
             return {
-                content: [
-                    { type: "text", text: `Failed to get token balance: ${error.message}` },
-                ],
+                structuredContent: {
+                    error: `Failed to get token balance: ${error.message}`,
+                },
             };
         }
     }
 );
 
 // getTokenBalances tool: get balances for a list of tokens for a wallet
-server.tool(
-    "tokenBalances",
-    "Get balances for a list of tokens for a wallet",
+server.registerTool(
+    "token-balances",
     {
-        walletAddress: z.string().describe("Wallet address"),
-        chainId: z.number().describe("Chain ID"),
+        description: "Get balances for a list of tokens for a wallet",
+        inputSchema: {
+            walletAddress: z.string().describe("Wallet address"),
+            chainId: z.number().describe("Chain ID"),
+        },
+        outputSchema: {
+            balances: z.array(z.object({
+                chainId: z.number().describe("Chain ID"),
+                address: z.string().describe("Wallet address"),
+                symbol: z.string().describe("Token symbol"),
+                name: z.string().describe("Token name"),
+                decimals: z.number().describe("Token decimals"),
+                priceUSD: z.string().describe("Token price in USD"),
+                coinKey: z.string().describe("Token key"),
+                logoURI: z.string().describe("Token logo URI"),
+                amount: z.string().describe("Token balance"),
+                blockNumber: z.string().describe("Block number"),
+            })),
+            error: z.string().optional().describe("Error message"),
+        },
     },
     async ({ walletAddress, chainId }) => {
         try {
             const tokens = await getTokens({ chains: [chainId] });
-            const balances = await getTokenBalances(walletAddress, tokens.tokens[chainId]);
+            let balances = await getTokenBalances(walletAddress, tokens.tokens[chainId]);
+            balances = JSON.parse(safeStringify(balances));
             return {
-                content: [
-                    { type: "text", text: safeStringify(balances) },
-                ],
+                structuredContent: {
+                    balances: balances,
+                },
             };
         } catch (error: any) {
             return {
-                content: [
-                    { type: "text", text: `Failed to get token balances: ${error.message}` },
-                ],
+                structuredContent: {
+                    error: `Failed to get token balances: ${error.message}`,
+                },
             };
         }
     }
@@ -489,7 +550,7 @@ server.tool(
 
 // getTokenAllowance tool: get the allowance of a token for a spender
 server.tool(
-    "tokenAllowance",
+    "token-allowance",
     "Get the allowance of a token for a spender",
     {
         token: z.object({
@@ -520,7 +581,7 @@ server.tool(
 
 // getTokenAllowanceMulticall tool: Get the allowance of multiple tokens for a spender
 server.tool(
-    "tokenAllowanceMulticall",
+    "token-allowance-multicall",
     "Get the allowance of multiple tokens for a spender",
     {
         ownerAddress: z.string().describe("Owner address"),
@@ -626,7 +687,7 @@ server.tool(
 
 // getGasPrice tool: get gas price for a specific chain
 server.tool(
-    "gasPrice",
+    "gas-price",
     "Get gas price for a specific chain",
     {
         chainId: z.number().describe("Chain ID"),
@@ -659,7 +720,7 @@ server.tool(
 
 // getGasPrices tool: get gas prices for all supported chains
 server.tool(
-    "gasPrices",
+    "gas-prices",
     "Get gas prices for all supported chains",
     {},
     async () => {

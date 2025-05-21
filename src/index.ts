@@ -532,6 +532,7 @@ server.registerTool(
         try {
             const tokens = await getTokens({ chains: [chainId] });
             let balances = await getTokenBalances(walletAddress, tokens.tokens[chainId]);
+            balances = balances.filter((balance: any) => balance.amount > 0);
             balances = JSON.parse(safeStringify(balances));
             return {
                 structuredContent: {

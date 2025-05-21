@@ -1,11 +1,12 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { createConfig, getQuote, executeRoute, getChains, getTokens, getToken, getTools, getTokenBalance, getTokenBalances, getTokenAllowance, getTokenAllowanceMulticall, getConnections, getStatus, getRoutes, Chain, EVM } from "@lifi/sdk";
+import { createConfig, getQuote, getChains, getTokens, getToken, getTools, getTokenBalance, getTokenBalances, getTokenAllowance, getTokenAllowanceMulticall, getConnections, getStatus, getRoutes, EVM } from "@lifi/sdk";
 import { createWalletClient, http, Chain as ViemChain } from "viem";
 import { mainnet } from "viem/chains";
 
 const lifiIntegrator = "helixbox-mcp";
+const lifiProtocol = "LI.FI";
 
 const allChains = await getChains();
 
@@ -44,17 +45,33 @@ function safeStringify(obj: any) {
 }
 
 // swap tool: cross-chain or same-chain swap
-server.tool(
+server.registerTool(
     "swap",
-    "Swap tokens (cross-chain or same-chain)",
     {
-        fromChain: z.number().describe("Source chain ID"),
-        toChain: z.number().describe("Target chain ID"),
-        fromToken: z.string().describe("Source token address"),
-        toToken: z.string().describe("Target token address"),
-        fromAmount: z.string().describe("Amount in smallest unit (string)"),
-        fromAddress: z.string().describe("User wallet address"),
-        slippage: z.number().optional().describe("Allowed slippage in percent (optional)"),
+        description: "Swap tokens (cross-chain or same-chain)",
+        inputSchema: {
+            fromChain: z.number().describe("Source chain ID"),
+            toChain: z.number().describe("Target chain ID"),
+            fromToken: z.string().describe("Source token address"),
+            toToken: z.string().describe("Target token address"),
+            fromAmount: z.string().describe("Amount in smallest unit (string)"),
+            fromAddress: z.string().describe("User wallet address"),
+            slippage: z.number().optional().describe("Allowed slippage in percent (optional)"),
+        },
+        outputSchema: {
+            params: z.object({
+                fromChain: z.number().describe("Source chain ID"),
+                toChain: z.number().describe("Target chain ID"),
+                fromToken: z.string().describe("Source token address"),
+                toToken: z.string().describe("Target token address"),
+                fromAmount: z.string().describe("Amount in smallest unit (string)"),
+                fromAddress: z.string().describe("User wallet address"),
+                slippage: z.number().optional().describe("Allowed slippage in percent (optional)"),
+            }),
+            protocol: z.string().describe("Protocol"),
+            quote: z.any().optional().describe("Quote"),
+            error: z.string().optional().describe("Error message"),
+        },
     },
     async ({ fromChain, toChain, fromToken, toToken, fromAmount, fromAddress, slippage }) => {
         try {
@@ -68,38 +85,68 @@ server.tool(
                 slippage,
             });
             return {
-                content: [
-                    {
-                        type: "text",
-                        text: safeStringify(quote),
+                structuredContent: {
+                    params: {
+                        fromChain,
+                        toChain,
+                        fromToken,
+                        toToken,
+                        fromAmount,
+                        fromAddress,
+                        slippage,
                     },
-                ],
+                    protocol: lifiProtocol,
+                    quote: quote,
+                }
             };
         } catch (error: any) {
             return {
-                content: [
-                    {
-                        type: "text",
-                        text: `Failed to get swap quote: ${error.message}`,
+                structuredContent: {
+                    params: {
+                        fromChain,
+                        toChain,
+                        fromToken,
+                        toToken,
+                        fromAmount,
+                        fromAddress,
+                        slippage,
                     },
-                ],
+                    protocol: lifiProtocol,
+                    error: `Failed to get swap quote: ${error.message}`,
+                }
             };
         }
     }
 );
 
 // bridge tool: cross-chain bridge
-server.tool(
+server.registerTool(
     "bridge",
-    "Bridge tokens",
     {
+        description: "Bridge tokens",
+        inputSchema: {
         fromChain: z.number().describe("Source chain ID"),
         toChain: z.number().describe("Target chain ID"),
         fromToken: z.string().describe("Source token address"),
-        toToken: z.string().describe("Target token address"),
-        fromAmount: z.string().describe("Amount in smallest unit (string)"),
-        fromAddress: z.string().describe("User wallet address"),
-        slippage: z.number().optional().describe("Allowed slippage in percent (optional)"),
+            toToken: z.string().describe("Target token address"),
+            fromAmount: z.string().describe("Amount in smallest unit (string)"),
+            fromAddress: z.string().describe("User wallet address"),
+            slippage: z.number().optional().describe("Allowed slippage in percent (optional)"),
+        },
+        outputSchema: {
+            params: z.object({
+                fromChain: z.number().describe("Source chain ID"),
+            toChain: z.number().describe("Target chain ID"),
+            fromToken: z.string().describe("Source token address"),
+            toToken: z.string().describe("Target token address"),
+            fromAmount: z.string().describe("Amount in smallest unit (string)"),
+            fromAddress: z.string().describe("User wallet address"),
+            slippage: z.number().optional().describe("Allowed slippage in percent (optional)"),
+            }),
+            protocol: z.string().describe("Protocol"),
+            quote: z.any().optional().describe("Quote"),
+            error: z.string().optional().describe("Error message"),
+        },
     },
     async ({ fromChain, toChain, fromToken, toToken, fromAmount, fromAddress, slippage }) => {
         try {
@@ -116,21 +163,35 @@ server.tool(
                 allowExchanges: [],
             });
             return {
-                content: [
-                    {
-                        type: "text",
-                        text: safeStringify(quote),
+                structuredContent: {
+                    params: {
+                        fromChain,
+                        toChain,
+                        fromToken,
+                        toToken,
+                        fromAmount,
+                        fromAddress,
+                        slippage,
                     },
-                ],
+                    protocol: lifiProtocol,
+                    quote: quote,
+                }
             };
         } catch (error: any) {
             return {
-                content: [
-                    {
-                        type: "text",
-                        text: `Failed to get bridge quote: ${error.message}`,
+                structuredContent: {
+                    params: {
+                        fromChain,
+                        toChain,
+                        fromToken,
+                        toToken,
+                        fromAmount,
+                        fromAddress,
+                        slippage,
                     },
-                ],
+                    protocol: lifiProtocol,
+                    error: `Failed to get bridge quote: ${error.message}`,
+                }
             };
         }
     }

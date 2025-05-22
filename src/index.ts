@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { createConfig, getQuote, getChains, getTokens, getToken, getTools, getTokenBalance, getTokenBalances, getTokenAllowance, getTokenAllowanceMulticall, getConnections, getStatus, getRoutes, EVM } from "@lifi/sdk";
+import { createConfig, getQuote, getChains, getTokens, getToken, getTools, getTokenBalance, getTokenBalances, getTokenAllowance, getTokenAllowanceMulticall, getConnections, getStatus, getRoutes, EVM, ChainType } from "@lifi/sdk";
 import { createWalletClient, http, Chain as ViemChain } from "viem";
 import { mainnet } from "viem/chains";
 import NodeCache from "node-cache";
@@ -44,7 +44,7 @@ const server = new McpServer({
 
 // Helper: safely stringify objects with bigint
 function safeStringify(obj: any) {
-    return JSON.stringify(obj, (_, v) => typeof v === "bigint" ? v.toString() : v, 2);
+    return JSON.stringify(obj, (_, v) => typeof v === "bigint" ? v.toString() : v);
 }
 
 // swap tool: cross-chain or same-chain swap
@@ -242,16 +242,17 @@ server.tool(
     },
     async ({ chain }) => {
         try {
-            let tokens = _cache.get(`tokens-${chain || "all"}`);
-            if (!tokens) {
-                tokens = await getTokens({ chains: chain ? [chain as any] : undefined });
-                _cache.set(`tokens-${chain || "all"}`, tokens, cacheTTL);
+            let lessTokens = _cache.get(`tokens-${chain || "all"}`);
+            if (!lessTokens) {
+                const tokens = await getTokens({ chains: chain ? [chain as any] : undefined, chainTypes: [ChainType.EVM] });
+                lessTokens = tokens.tokens[chain as any].slice(0, 25);
+                _cache.set(`tokens-${chain || "all"}`, lessTokens, cacheTTL);
             }
             return {
                 content: [
                     {
                         type: "text",
-                        text: safeStringify(tokens),
+                        text: safeStringify(lessTokens),
                     },
                 ],
             };
@@ -277,7 +278,11 @@ server.tool(
     },
     async ({ chains }) => {
         try {
-            const tokens = await getTokens(chains ? { chains: chains as any } : undefined);
+            const tokens = await getTokens({ chains: chains ? chains as any : undefined, chainTypes: [ChainType.EVM] });
+            for (const chain in tokens.tokens) {
+                const lessTokens = tokens.tokens[chain].slice(0, 25);
+                tokens.tokens[chain] = lessTokens;
+            }
             return {
                 content: [
                     {

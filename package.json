@@ -11,6 +11,7 @@
     "scripts": {
         "dev": "tsx src/index.ts",
         "build": "tsc",
+        "package": "tsc && npx ncc build build/index.js -o dist",
         "start": "node build/index.js",
         "test": "tsx src/test.ts",
         "inspect": "npx @modelcontextprotocol/inspector"
@@ -30,6 +31,7 @@
         "zod": "^3.24.4"
     },
     "devDependencies": {
+        "@vercel/ncc": "^0.38.3",
         "nodemon": "^3.1.10",
         "tsx": "^4.19.4"
     }
